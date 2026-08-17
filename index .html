@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ur" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dandelion Smart Resell</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f3f6fa;color:#17202a;font-family:Arial,sans-serif}
+header{background:#111827;color:#fff;padding:18px}.wrap{max-width:1050px;margin:auto;padding:0 16px}
+nav{display:flex;gap:8px;flex-wrap:wrap;padding:14px 0}button{border:0;border-radius:9px;padding:10px 14px;cursor:pointer;font-weight:700}
+.tab.active,.primary{background:#2563eb;color:white}.tab{background:#e5e7eb}.danger{background:#dc2626;color:#fff}
+.card{background:#fff;border-radius:16px;padding:18px;margin:15px 0;box-shadow:0 3px 14px #0001}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}label{font-weight:bold}
+input,textarea{width:100%;padding:10px;margin-top:5px;border:1px solid #d1d5db;border-radius:8px}textarea{min-height:80px}
+.products{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}.product{border:1px solid #e5e7eb;border-radius:13px;padding:12px}
+.product img{width:100%;height:180px;object-fit:cover;border-radius:9px;background:#eee}.price{font-size:23px;font-weight:800;margin:8px 0}
+.free{color:#16803c;font-weight:800}.warning{background:#fff7ed;color:#9a3412;padding:10px;border-radius:9px;margin:8px 0}
+.row{border-bottom:1px solid #eee;padding:12px 0}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.hidden{display:none!important}.muted{color:#6b7280}.modal{position:fixed;inset:0;background:#0008;display:flex;align-items:center;justify-content:center;padding:15px}
+.modalbox{background:#fff;border-radius:16px;padding:20px;max-width:650px;width:100%;max-height:90vh;overflow:auto}
+.close{float:left;background:#eee;font-size:20px}
+</style></head>
+<body>
+<header><div class="wrap"><h1>🛒 Dandelion Smart Resell</h1><div>GitHub Pages V1</div></div></header>
+<div class="wrap"><nav>
+<button class="tab active" onclick="page('shop',this)">Customer Shop</button>
+<button class="tab" onclick="page('admin',this)">Admin</button>
+<button class="tab" onclick="page('orders',this)">Orders</button>
+</nav>
+
+<section id="shop" class="card"><h2>Products</h2><div id="products" class="products"></div></section>
+
+<section id="admin" class="card hidden"><h2>Admin — Product</h2>
+<div class="grid">
+<label>نام<input id="name"></label><label>Markaz Cost<input id="cost" type="number"></label>
+<label>Selling Price<input id="sale" type="number"></label><label>Normal Delivery<input id="base" type="number" value="300"></label>
+<label>Actual Delivery<input id="actual" type="number" value="300"></label><label>Markaz SKU<input id="sku"></label>
+<label>Markaz Link<input id="link"></label><label>Image URL<input id="image"></label>
+</div><div class="actions"><button class="primary" onclick="saveProduct()">Save</button><button onclick="clearForm()">Clear</button></div>
+<p class="muted">Markaz cost/link/SKU customer کو نہیں دکھائے جاتے۔</p><div id="adminProducts"></div></section>
+
+<section id="orders" class="card hidden"><h2>Orders</h2><div id="ordersList"></div></section>
+</div>
+
+<div id="modal" class="modal hidden"><div class="modalbox"><button class="close" onclick="closeModal()">×</button><div id="modalBody"></div></div></div>
+
+<script>
+const KEY="dandelion_smart_resell_v1";
+let db=JSON.parse(localStorage.getItem(KEY)||"null")||{products:[],orders:[]},editing=null;
+const $=id=>document.getElementById(id), money=n=>"Rs. "+Number(n||0).toLocaleString("en-PK");
+function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
+function persist(){localStorage.setItem(KEY,JSON.stringify(db))}
+function page(id,btn){document.querySelectorAll("section").forEach(x=>x.classList.add("hidden"));$(id).classList.remove("hidden");document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));btn.classList.add("active");if(id==="shop")renderShop();if(id==="admin")renderAdmin();if(id==="orders")renderOrders()}
+function renderShop(){
+ if(!db.products.length){$("products").innerHTML="<p class='muted'>Admin سے پہلے Product شامل کریں۔</p>";return}
+ $("products").innerHTML=db.products.map(p=>{let extra=Math.max(0,p.actual-p.base);return `<div class="product"><img src="${esc(p.image)||'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22300%22><rect width=%22100%%22 height=%22100%%22 fill=%22%23e5e7eb%22/><text x=%2250%%22 y=%2250%%22 text-anchor=%22middle%22 dominant-baseline=%22middle%22 font-size=%2230%22>Product</text></svg>'}"><h3>${esc(p.name)}</h3><div class="price">${money(p.sale)}</div>${extra?`<div class="warning">ممکنہ اضافی Delivery: ${money(extra)}</div>`:`<div class="free">🚚 Free Delivery</div>`}<button class="primary" onclick="checkout(${p.id})">Order Now</button></div>`}).join("")
+}
+function renderAdmin(){
+ $("adminProducts").innerHTML="<h3>Saved Products</h3>"+db.products.map(p=>`<div class="row"><b>${esc(p.name)}</b> — ${money(p.sale)} — SKU: ${esc(p.sku)}<div class="actions"><button onclick="editProduct(${p.id})">Edit</button><button class="danger" onclick="delProduct(${p.id})">Delete</button></div></div>`).join("")
+}
+function saveProduct(){
+ let p={id:editing||Date.now(),name:$("name").value.trim(),cost:+$("cost").value||0,sale:+$("sale").value||0,base:+$("base").value||300,actual:+$("actual").value||300,sku:$("sku").value.trim(),link:$("link").value.trim(),image:$("image").value.trim()};
+ if(!p.name||!p.sale){alert("نام اور Selling Price ضروری ہیں");return}
+ let i=db.products.findIndex(x=>x.id===p.id);if(i>=0)db.products[i]=p;else db.products.push(p);editing=null;persist();clearForm();renderAdmin();renderShop()
+}
+function editProduct(id){let p=db.products.find(x=>x.id===id);editing=id;["name","cost","sale","base","actual","sku","link","image"].forEach(k=>$(k).value=p[k]??"")}
+function delProduct(id){if(confirm("Delete؟")){db.products=db.products.filter(x=>x.id!==id);persist();renderAdmin();renderShop()}}
+function clearForm(){editing=null;["name","cost","sale","sku","link","image"].forEach(x=>$(x).value="");$("base").value=300;$("actual").value=300}
+function checkout(id){
+ let p=db.products.find(x=>x.id===id),extra=Math.max(0,p.actual-p.base);
+ $("modalBody").innerHTML=`<h2>${esc(p.name)}</h2><div class="price">${money(p.sale)}</div>${extra?`<div class="warning">Additional Delivery: ${money(extra)} — Customer confirmation required.</div>`:`<div class="free">🚚 Free Delivery</div>`}
+ <div class="grid"><label>نام<input id="cn"></label><label>موبائل<input id="cp"></label><label>شہر<input id="cc"></label><label>Quantity<input id="cq" type="number" value="1" min="1"></label></div><label>مکمل پتہ<textarea id="ca"></textarea></label><div class="actions"><button class="primary" onclick="placeOrder(${id},${extra})">Confirm Order</button></div>`;
+ $("modal").classList.remove("hidden")
+}
+function placeOrder(pid,extra){
+ let p=db.products.find(x=>x.id===pid),o={id:"ORD-"+Date.now(),productId:pid,name:$("cn").value.trim(),phone:$("cp").value.trim(),city:$("cc").value.trim(),address:$("ca").value.trim(),qty:+$("cq").value||1,extra,total:p.sale*(+$("cq").value||1)+extra,status:"New",created:new Date().toLocaleString("en-PK")};
+ if(!o.name||!o.phone||!o.city||!o.address){alert("نام، موبائل، شہر اور پتہ مکمل کریں");return}
+ db.orders.unshift(o);persist();closeModal();alert("Order محفوظ ہوگیا");renderOrders()
+}
+function renderOrders(){
+ if(!db.orders.length){$("ordersList").innerHTML="<p class='muted'>No orders yet.</p>";return}
+ $("ordersList").innerHTML=db.orders.map(o=>{let p=db.products.find(x=>x.id===o.productId)||{};return `<div class="row"><h3>${esc(o.id)} — ${esc(p.name)}</h3>Customer: ${esc(o.name)}<br>Mobile: ${esc(o.phone)}<br>Address: ${esc(o.city)}, ${esc(o.address)}<br>Qty: ${o.qty} | Total: <b>${money(o.total)}</b><br>Status: <b>${esc(o.status)}</b><div class="actions"><button class="primary" onclick="markaz(${o.id?`'${o.id}'`:"''"})">Prepare Markaz Order</button><button onclick="status('${o.id}','Confirmed')">Confirm</button><button onclick="status('${o.id}','Delivered')">Delivered</button></div></div>`}).join("")
+}
+function status(id,s){let o=db.orders.find(x=>x.id===id);if(o){o.status=s;persist();renderOrders()}}
+function markaz(id){
+ let o=db.orders.find(x=>x.id===id),p=db.products.find(x=>x.id===o.productId);
+ $("modalBody").innerHTML=`<h2>Prepare Markaz Order</h2><p><b>SKU:</b> ${esc(p.sku)}</p><p><b>Product Link:</b> ${esc(p.link||"Not saved")}</p><hr><p><b>Customer:</b> ${esc(o.name)}</p><p><b>Mobile:</b> ${esc(o.phone)}</p><p><b>City:</b> ${esc(o.city)}</p><p><b>Address:</b> ${esc(o.address)}</p><p><b>Quantity:</b> ${o.qty}</p><div class="warning">V1 میں یہ معلومات تیار ہوتی ہیں؛ Markaz کا official final order اس کے account/app میں place ہوگا۔</div><button class="primary" onclick="copyMarkaz('${o.id}')">Copy Order Data</button>`;$("modal").classList.remove("hidden")
+}
+function copyMarkaz(id){let o=db.orders.find(x=>x.id===id),p=db.products.find(x=>x.id===o.productId),t=`Markaz SKU: ${p.sku}\nProduct: ${p.name}\nCustomer: ${o.name}\nMobile: ${o.phone}\nCity: ${o.city}\nAddress: ${o.address}\nQuantity: ${o.qty}`;navigator.clipboard?.writeText(t);alert("Copied")}
+function closeModal(){$("modal").classList.add("hidden")}
+renderShop();renderAdmin();renderOrders();
+</script></body></html>
